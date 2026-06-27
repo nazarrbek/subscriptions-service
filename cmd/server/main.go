@@ -5,14 +5,21 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/nazarrbek/subscriptions-service/internal/config"
 )
 
 func main() {
 	r := chi.NewRouter()
 	r.Get("/", checkResponse)
-	log.Println("Server started on :8080")
-	err := http.ListenAndServe(":8080", r)
+
+	cfg, err := config.Load()
 	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("Server started on :%s", cfg.AppPort)
+
+	if err := http.ListenAndServe(":"+cfg.AppPort, r); err != nil {
 		log.Fatal(err)
 	}
 }
