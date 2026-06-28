@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nazarrbek/subscriptions-service/internal/config"
+	"github.com/nazarrbek/subscriptions-service/internal/repository"
 )
 
 func main() {
@@ -16,6 +18,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	db, err := repository.NewPostgres(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer db.Close(context.Background())
 
 	log.Printf("Server started on :%s", cfg.AppPort)
 
