@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/nazarrbek/subscriptions-service/internal/models"
 )
@@ -45,4 +46,41 @@ VALUES ($1, $2, $3, $4, $5, $6)`
 		return fmt.Errorf("create subscription: %w", err)
 	}
 	return nil
+}
+func (r *SubscriptionRepository) GetByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (*models.Subscription, error) {
+
+	const query = `
+SELECT
+	id,
+	service_name,
+	price,
+	user_id,
+	start_date,
+	end_date,
+	created_at,
+	updated_at
+FROM subscriptions
+WHERE id = $1`
+
+	var sub models.Subscription
+
+	err := r.db.QueryRow(ctx, query, id).Scan(
+		&sub.ID,
+		&sub.ServiceName,
+		&sub.Price,
+		&sub.UserID,
+		&sub.StartDate,
+		&sub.EndDate,
+		&sub.CreatedAt,
+		&sub.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("get subscription by id: %w", err)
+	}
+
+	return &sub, nil
 }

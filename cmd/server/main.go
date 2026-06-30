@@ -33,6 +33,7 @@ func main() {
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
 
 	r.Post("/subscriptions", subscriptionHandler.Create)
+	r.Get("/subscriptions/{id}", subscriptionHandler.GetByID)
 	defer db.Close(context.Background())
 
 	log.Printf("Server started on :%s", cfg.AppPort)

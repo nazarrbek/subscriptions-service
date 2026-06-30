@@ -57,3 +57,11 @@ func (s *SubscriptionService) Create(
 
 	return s.repo.Create(ctx, subscription)
 }
+
+func (s *SubscriptionService) GetByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (*models.Subscription, error) {
+
+	return s.repo.GetByID(ctx, id)
+}

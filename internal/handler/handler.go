@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/nazarrbek/subscriptions-service/internal/dto"
 	"github.com/nazarrbek/subscriptions-service/internal/service"
 )
@@ -32,4 +34,25 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
+}
+
+func (h *SubscriptionHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+
+	id := chi.URLParam(r, "id")
+
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	subscription, err := h.service.GetByID(r.Context(), parsedID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	json.NewEncoder(w).Encode(subscription)
 }
