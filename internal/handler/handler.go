@@ -56,3 +56,19 @@ func (h *SubscriptionHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(subscription)
 }
+
+func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
+
+	subscriptions, err := h.service.List(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(subscriptions); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}

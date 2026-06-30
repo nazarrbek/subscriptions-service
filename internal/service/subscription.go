@@ -65,3 +65,10 @@ func (s *SubscriptionService) GetByID(
 
 	return s.repo.GetByID(ctx, id)
 }
+
+func (s *SubscriptionService) List(
+	ctx context.Context,
+) ([]models.Subscription, error) {
+
+	return s.repo.List(ctx)
+}
