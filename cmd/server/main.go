@@ -7,12 +7,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nazarrbek/subscriptions-service/internal/config"
+	"github.com/nazarrbek/subscriptions-service/internal/handler"
 	"github.com/nazarrbek/subscriptions-service/internal/repository"
+	"github.com/nazarrbek/subscriptions-service/internal/service"
 )
 
 func main() {
 	r := chi.NewRouter()
-	r.Get("/", checkResponse)
+	//r.Get("/", checkResponse)
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -24,6 +26,13 @@ func main() {
 		log.Fatal(err)
 	}
 
+	repo := repository.NewSubscriptionRepository(db)
+
+	subscriptionService := service.NewSubscriptionService(repo)
+
+	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
+
+	r.Post("/subscriptions", subscriptionHandler.Create)
 	defer db.Close(context.Background())
 
 	log.Printf("Server started on :%s", cfg.AppPort)
