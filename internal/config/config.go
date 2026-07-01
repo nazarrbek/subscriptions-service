@@ -21,7 +21,7 @@ func Load() (*Config, error) {
 	v.SetConfigType("env")
 
 	v.AutomaticEnv()
-	
+
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ import (
 	_ "github.com/nazarrbek/subscriptions-service/docs"
 	"github.com/nazarrbek/subscriptions-service/internal/config"
 	"github.com/nazarrbek/subscriptions-service/internal/handler"
+	"github.com/nazarrbek/subscriptions-service/internal/middleware"
 	"github.com/nazarrbek/subscriptions-service/internal/repository"
 	"github.com/nazarrbek/subscriptions-service/internal/service"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -22,6 +23,7 @@ import (
 // @BasePath /
 func main() {
 	r := chi.NewRouter()
+
 	//r.Get("/", checkResponse)
 
 	cfg, err := config.Load()
@@ -39,7 +41,7 @@ func main() {
 	subscriptionService := service.NewSubscriptionService(repo)
 
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
-
+	r.Use(middleware.Logger)
 	r.Post("/subscriptions", subscriptionHandler.Create)
 	r.Get("/subscriptions/{id}", subscriptionHandler.GetByID)
 	r.Get("/subscriptions", subscriptionHandler.List)

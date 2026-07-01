@@ -18,7 +18,7 @@ func NewPostgres(cfg *config.Config) (*pgx.Conn, error) {
 		cfg.DBName,
 		cfg.DBSSLMode,
 	)
-	
+
 	conn, err := pgx.Connect(context.Background(), dsn)
 	if err != nil {
 		return nil, err
