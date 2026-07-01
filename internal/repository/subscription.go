@@ -137,3 +137,36 @@ ORDER BY created_at DESC;
 
 	return subscriptions, nil
 }
+
+func (r *SubscriptionRepository) Update(
+	ctx context.Context,
+	sub *models.Subscription,
+) error {
+
+	const query = `
+UPDATE subscriptions
+SET
+	service_name = $1,
+	price = $2,
+	start_date = $3,
+	end_date = $4,
+	updated_at = CURRENT_TIMESTAMP
+WHERE id = $5;
+`
+
+	_, err := r.db.Exec(
+		ctx,
+		query,
+		sub.ServiceName,
+		sub.Price,
+		sub.StartDate,
+		sub.EndDate,
+		sub.ID,
+	)
+
+	if err != nil {
+		return fmt.Errorf("update subscription: %w", err)
+	}
+
+	return nil
+}

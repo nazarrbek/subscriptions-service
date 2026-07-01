@@ -72,3 +72,35 @@ func (s *SubscriptionService) List(
 
 	return s.repo.List(ctx)
 }
+
+func (s *SubscriptionService) Update(
+	ctx context.Context,
+	id uuid.UUID,
+	req *dto.UpdateSubscriptionRequest,
+) error {
+
+	startDate, err := time.Parse("01-2006", req.StartDate)
+	if err != nil {
+		return fmt.Errorf("invalid start date: %w", err)
+	}
+
+	var endDate *time.Time
+
+	if req.EndDate != "" {
+		t, err := time.Parse("01-2006", req.EndDate)
+		if err != nil {
+			return fmt.Errorf("invalid end date: %w", err)
+		}
+		endDate = &t
+	}
+
+	sub := &models.Subscription{
+		ID:          id,
+		ServiceName: req.ServiceName,
+		Price:       req.Price,
+		StartDate:   startDate,
+		EndDate:     endDate,
+	}
+
+	return s.repo.Update(ctx, sub)
+}

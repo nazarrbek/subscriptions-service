@@ -72,3 +72,31 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+func (h *SubscriptionHandler) Update(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	id := chi.URLParam(r, "id")
+
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	var req dto.UpdateSubscriptionRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.Update(r.Context(), parsedID, &req); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
