@@ -36,6 +36,7 @@ func main() {
 	r.Get("/subscriptions/{id}", subscriptionHandler.GetByID)
 	r.Get("/subscriptions", subscriptionHandler.List)
 	r.Put("/subscriptions/{id}", subscriptionHandler.Update)
+	r.Delete("/subscriptions/{id}", subscriptionHandler.Delete)
 	defer db.Close(context.Background())
 
 	log.Printf("Server started on :%s", cfg.AppPort)

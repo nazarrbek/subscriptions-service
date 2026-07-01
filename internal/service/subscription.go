@@ -104,3 +104,10 @@ func (s *SubscriptionService) Update(
 
 	return s.repo.Update(ctx, sub)
 }
+func (s *SubscriptionService) Delete(
+	ctx context.Context,
+	id uuid.UUID,
+) error {
+
+	return s.repo.Delete(ctx, id)
+}

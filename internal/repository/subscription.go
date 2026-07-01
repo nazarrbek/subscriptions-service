@@ -170,3 +170,25 @@ WHERE id = $5;
 
 	return nil
 }
+
+func (r *SubscriptionRepository) Delete(
+	ctx context.Context,
+	id uuid.UUID,
+) error {
+
+	const query = `
+DELETE FROM subscriptions
+WHERE id = $1;
+`
+
+	tag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("delete subscription: %w", err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("subscription not found")
+	}
+
+	return nil
+}

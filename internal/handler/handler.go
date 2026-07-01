@@ -100,3 +100,24 @@ func (h *SubscriptionHandler) Update(
 
 	w.WriteHeader(http.StatusOK)
 }
+
+func (h *SubscriptionHandler) Delete(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	id := chi.URLParam(r, "id")
+
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.Delete(r.Context(), parsedID); err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
