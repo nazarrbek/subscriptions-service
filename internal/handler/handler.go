@@ -21,6 +21,17 @@ func NewSubscriptionHandler(service *service.SubscriptionService) *SubscriptionH
 	}
 }
 
+// Create godoc
+// @Summary Create subscription
+// @Description Create a new subscription
+// @Tags subscriptions
+// @Accept json
+// @Produce json
+// @Param request body dto.CreateSubscriptionRequest true "Subscription"
+// @Success 201
+// @Failure 400
+// @Failure 500
+// @Router /subscriptions [post]
 func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateSubscriptionRequest
 
@@ -37,6 +48,16 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+// GetByID godoc
+// @Summary Get subscription by ID
+// @Description Get subscription by UUID
+// @Tags subscriptions
+// @Produce json
+// @Param id path string true "Subscription ID"
+// @Success 200 {object} models.Subscription
+// @Failure 400
+// @Failure 404
+// @Router /subscriptions/{id} [get]
 func (h *SubscriptionHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, "id")
@@ -58,6 +79,14 @@ func (h *SubscriptionHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(subscription)
 }
 
+// List godoc
+// @Summary List subscriptions
+// @Description Get all subscriptions
+// @Tags subscriptions
+// @Produce json
+// @Success 200 {array} models.Subscription
+// @Failure 500
+// @Router /subscriptions [get]
 func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	subscriptions, err := h.service.List(r.Context())
@@ -74,6 +103,18 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Update godoc
+// @Summary Update subscription
+// @Description Update subscription by ID
+// @Tags subscriptions
+// @Accept json
+// @Produce json
+// @Param id path string true "Subscription ID"
+// @Param request body dto.UpdateSubscriptionRequest true "Subscription"
+// @Success 200
+// @Failure 400
+// @Failure 404
+// @Router /subscriptions/{id} [put]
 func (h *SubscriptionHandler) Update(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -102,6 +143,16 @@ func (h *SubscriptionHandler) Update(
 	w.WriteHeader(http.StatusOK)
 }
 
+// Delete godoc
+// @Summary Delete subscription
+// @Description Delete subscription by ID
+// @Tags subscriptions
+// @Produce json
+// @Param id path string true "Subscription ID"
+// @Success 204
+// @Failure 400
+// @Failure 404
+// @Router /subscriptions/{id} [delete]
 func (h *SubscriptionHandler) Delete(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -123,6 +174,19 @@ func (h *SubscriptionHandler) Delete(
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// CalculateTotal godoc
+// @Summary Calculate total subscription cost
+// @Description Calculate total subscription cost for selected period
+// @Tags subscriptions
+// @Produce json
+// @Param user_id query string true "User ID"
+// @Param service_name query string true "Service name"
+// @Param from query string true "Start period (MM-YYYY)"
+// @Param to query string true "End period (MM-YYYY)"
+// @Success 200 {object} dto.TotalResponse
+// @Failure 400
+// @Failure 500
+// @Router /subscriptions/total [get]
 func (h *SubscriptionHandler) CalculateTotal(
 	w http.ResponseWriter,
 	r *http.Request,

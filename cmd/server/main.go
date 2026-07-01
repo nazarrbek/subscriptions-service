@@ -6,12 +6,20 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	_ "github.com/nazarrbek/subscriptions-service/docs"
 	"github.com/nazarrbek/subscriptions-service/internal/config"
 	"github.com/nazarrbek/subscriptions-service/internal/handler"
 	"github.com/nazarrbek/subscriptions-service/internal/repository"
 	"github.com/nazarrbek/subscriptions-service/internal/service"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
+// @title Subscription Service API
+// @version 1.0
+// @description REST API для управления подписками пользователей.
+
+// @host localhost:8080
+// @BasePath /
 func main() {
 	r := chi.NewRouter()
 	//r.Get("/", checkResponse)
@@ -38,6 +46,7 @@ func main() {
 	r.Put("/subscriptions/{id}", subscriptionHandler.Update)
 	r.Delete("/subscriptions/{id}", subscriptionHandler.Delete)
 	r.Get("/subscriptions/total", subscriptionHandler.CalculateTotal)
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 	defer db.Close(context.Background())
 
 	log.Printf("Server started on :%s", cfg.AppPort)
