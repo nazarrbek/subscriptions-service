@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -191,4 +192,38 @@ WHERE id = $1;
 	}
 
 	return nil
+}
+
+func (r *SubscriptionRepository) CalculateTotal(
+	ctx context.Context,
+	userID uuid.UUID,
+	serviceName string,
+	from time.Time,
+	to time.Time,
+) (int, error) {
+
+	const query = `
+SELECT COALESCE(SUM(price), 0)
+FROM subscriptions
+WHERE user_id = $1
+AND service_name = $2
+AND start_date BETWEEN $3 AND $4;
+`
+
+	var total int
+
+	err := r.db.QueryRow(
+		ctx,
+		query,
+		userID,
+		serviceName,
+		from,
+		to,
+	).Scan(&total)
+
+	if err != nil {
+		return 0, fmt.Errorf("calculate total: %w", err)
+	}
+
+	return total, nil
 }

@@ -111,3 +111,20 @@ func (s *SubscriptionService) Delete(
 
 	return s.repo.Delete(ctx, id)
 }
+
+func (s *SubscriptionService) CalculateTotal(
+	ctx context.Context,
+	userID uuid.UUID,
+	serviceName string,
+	from time.Time,
+	to time.Time,
+) (int, error) {
+
+	return s.repo.CalculateTotal(
+		ctx,
+		userID,
+		serviceName,
+		from,
+		to,
+	)
+}

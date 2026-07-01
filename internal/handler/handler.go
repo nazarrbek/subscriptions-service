@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -120,4 +121,47 @@ func (h *SubscriptionHandler) Delete(
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *SubscriptionHandler) CalculateTotal(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	userID, err := uuid.Parse(r.URL.Query().Get("user_id"))
+	if err != nil {
+		http.Error(w, "invalid user_id", http.StatusBadRequest)
+		return
+	}
+
+	serviceName := r.URL.Query().Get("service_name")
+
+	from, err := time.Parse("01-2006", r.URL.Query().Get("from"))
+	if err != nil {
+		http.Error(w, "invalid from", http.StatusBadRequest)
+		return
+	}
+
+	to, err := time.Parse("01-2006", r.URL.Query().Get("to"))
+	if err != nil {
+		http.Error(w, "invalid to", http.StatusBadRequest)
+		return
+	}
+
+	total, err := h.service.CalculateTotal(
+		r.Context(),
+		userID,
+		serviceName,
+		from,
+		to,
+	)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(dto.TotalResponse{
+		Total: total,
+	})
 }
