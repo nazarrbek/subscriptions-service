@@ -32,8 +32,6 @@ func main() {
 
 	r := chi.NewRouter()
 
-	//r.Get("/", checkResponse)
-
 	cfg, err := config.Load()
 	if err != nil {
 		logger.Error("load config", "error", err)
@@ -92,14 +90,5 @@ func main() {
 
 	if err := db.Close(context.Background()); err != nil {
 		logger.Error("close database", "error", err)
-	}
-}
-
-func checkResponse(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte("Hello world"))
-	if err != nil {
-		slog.Error("failed to write response", "error", err)
-		return
 	}
 }

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/spf13/viper"
 )
@@ -30,6 +31,8 @@ func Load() (*Config, error) {
 		if !errors.As(err, &configFileNotFoundError) {
 			return nil, fmt.Errorf("read config: %w", err)
 		}
+
+		slog.Warn(".env not found, using environment variables")
 	}
 
 	return &Config{
