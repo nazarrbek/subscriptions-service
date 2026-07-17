@@ -1,6 +1,9 @@
 package config
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/spf13/viper"
 )
 
@@ -23,8 +26,12 @@ func Load() (*Config, error) {
 	v.AutomaticEnv()
 
 	if err := v.ReadInConfig(); err != nil {
-		return nil, err
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFoundError) {
+			return nil, fmt.Errorf("read config: %w", err)
+		}
 	}
+
 	return &Config{
 		AppPort:    v.GetString("APP_PORT"),
 		DBHost:     v.GetString("DB_HOST"),

@@ -196,34 +196,94 @@ WHERE id = $1;
 
 func (r *SubscriptionRepository) CalculateTotal(
 	ctx context.Context,
-	userID uuid.UUID,
-	serviceName string,
+	userID *uuid.UUID,
+	serviceName *string,
 	from time.Time,
 	to time.Time,
 ) (int, error) {
 
 	const query = `
-SELECT COALESCE(SUM(price), 0)
+SELECT
+	price,
+	start_date,
+	end_date
 FROM subscriptions
-WHERE user_id = $1
-AND service_name = $2
-AND start_date BETWEEN $3 AND $4;
+WHERE start_date <= $1
+AND (end_date IS NULL OR end_date >= $2)
+AND ($3::uuid IS NULL OR user_id = $3)
+AND ($4::text IS NULL OR service_name = $4)
+ORDER BY start_date;
 `
 
-	var total int
+	var userIDArg any
+	if userID != nil {
+		userIDArg = *userID
+	}
 
-	err := r.db.QueryRow(
-		ctx,
-		query,
-		userID,
-		serviceName,
-		from,
-		to,
-	).Scan(&total)
+	var serviceNameArg any
+	if serviceName != nil {
+		serviceNameArg = *serviceName
+	}
 
+	rows, err := r.db.Query(ctx, query, to, from, userIDArg, serviceNameArg)
 	if err != nil {
 		return 0, fmt.Errorf("calculate total: %w", err)
 	}
+	defer rows.Close()
+
+	var total int
+	queryFrom := monthStart(from)
+	queryTo := monthStart(to)
+
+	for rows.Next() {
+		var price int
+		var startDate time.Time
+		var endDate *time.Time
+
+		if err := rows.Scan(&price, &startDate, &endDate); err != nil {
+			return 0, fmt.Errorf("scan subscription for total: %w", err)
+		}
+
+		overlapStart := maxMonth(monthStart(startDate), queryFrom)
+		overlapEnd := queryTo
+		if endDate != nil {
+			candidateEnd := monthStart(*endDate)
+			if candidateEnd.Before(overlapEnd) {
+				overlapEnd = candidateEnd
+			}
+		}
+
+		if overlapEnd.Before(overlapStart) {
+			continue
+		}
+
+		months := monthsInclusive(overlapStart, overlapEnd)
+		total += price * months
+	}
+
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("calculate total rows: %w", err)
+	}
 
 	return total, nil
+}
+
+func monthStart(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
+}
+
+func maxMonth(first time.Time, second time.Time) time.Time {
+	if second.After(first) {
+		return second
+	}
+
+	return first
+}
+
+func monthsInclusive(start time.Time, end time.Time) int {
+	if end.Before(start) {
+		return 0
+	}
+
+	return (end.Year()-start.Year())*12 + int(end.Month()-start.Month()) + 1
 }

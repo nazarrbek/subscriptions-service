@@ -65,7 +65,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created"
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateSubscriptionResponse"
+                        }
                     },
                     "400": {
                         "description": "Bad Request"
@@ -92,14 +95,14 @@ const docTemplate = `{
                         "description": "User ID",
                         "name": "user_id",
                         "in": "query",
-                        "required": true
+                        "required": false
                     },
                     {
                         "type": "string",
                         "description": "Service name",
                         "name": "service_name",
                         "in": "query",
-                        "required": true
+                        "required": false
                     },
                     {
                         "type": "string",
@@ -257,6 +260,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.CreateSubscriptionResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
                     "type": "string"
                 }
             }

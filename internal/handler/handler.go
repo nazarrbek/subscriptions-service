@@ -28,7 +28,7 @@ func NewSubscriptionHandler(service *service.SubscriptionService) *SubscriptionH
 // @Accept json
 // @Produce json
 // @Param request body dto.CreateSubscriptionRequest true "Subscription"
-// @Success 201
+// @Success 201 {object} dto.CreateSubscriptionResponse
 // @Failure 400
 // @Failure 500
 // @Router /subscriptions [post]
@@ -40,12 +40,15 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Create(r.Context(), &req); err != nil {
+	createdSubscription, err := h.service.Create(r.Context(), &req)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(dto.CreateSubscriptionResponse{ID: createdSubscription.ID.String()})
 }
 
 // GetByID godoc
@@ -179,8 +182,8 @@ func (h *SubscriptionHandler) Delete(
 // @Description Calculate total subscription cost for selected period
 // @Tags subscriptions
 // @Produce json
-// @Param user_id query string true "User ID"
-// @Param service_name query string true "Service name"
+// @Param user_id query string false "User ID"
+// @Param service_name query string false "Service name"
 // @Param from query string true "Start period (MM-YYYY)"
 // @Param to query string true "End period (MM-YYYY)"
 // @Success 200 {object} dto.TotalResponse
@@ -191,14 +194,20 @@ func (h *SubscriptionHandler) CalculateTotal(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-
-	userID, err := uuid.Parse(r.URL.Query().Get("user_id"))
-	if err != nil {
-		http.Error(w, "invalid user_id", http.StatusBadRequest)
-		return
+	var userID *uuid.UUID
+	if rawUserID := r.URL.Query().Get("user_id"); rawUserID != "" {
+		parsedUserID, err := uuid.Parse(rawUserID)
+		if err != nil {
+			http.Error(w, "invalid user_id", http.StatusBadRequest)
+			return
+		}
+		userID = &parsedUserID
 	}
 
-	serviceName := r.URL.Query().Get("service_name")
+	var serviceName *string
+	if rawServiceName := r.URL.Query().Get("service_name"); rawServiceName != "" {
+		serviceName = &rawServiceName
+	}
 
 	from, err := time.Parse("01-2006", r.URL.Query().Get("from"))
 	if err != nil {
@@ -225,6 +234,7 @@ func (h *SubscriptionHandler) CalculateTotal(
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dto.TotalResponse{
 		Total: total,
 	})

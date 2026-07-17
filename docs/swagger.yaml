@@ -13,6 +13,11 @@ definitions:
       user_id:
         type: string
     type: object
+  dto.CreateSubscriptionResponse:
+    properties:
+      id:
+        type: string
+    type: object
   dto.TotalResponse:
     properties:
       total:
@@ -88,6 +93,8 @@ paths:
       responses:
         "201":
           description: Created
+          schema:
+            $ref: '#/definitions/dto.CreateSubscriptionResponse'
         "400":
           description: Bad Request
         "500":
@@ -173,12 +180,12 @@ paths:
       - description: User ID
         in: query
         name: user_id
-        required: true
+        required: false
         type: string
       - description: Service name
         in: query
         name: service_name
-        required: true
+        required: false
         type: string
       - description: Start period (MM-YYYY)
         in: query

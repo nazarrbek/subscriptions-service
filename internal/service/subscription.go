@@ -25,23 +25,23 @@ func NewSubscriptionService(repo *repository.SubscriptionRepository) *Subscripti
 func (s *SubscriptionService) Create(
 	ctx context.Context,
 	req *dto.CreateSubscriptionRequest,
-) error {
+) (*models.Subscription, error) {
 
 	userID, err := uuid.Parse(req.UserID)
 	if err != nil {
-		return fmt.Errorf("invalid user id: %w", err)
+		return nil, fmt.Errorf("invalid user id: %w", err)
 	}
 
 	startDate, err := time.Parse("01-2006", req.StartDate)
 	if err != nil {
-		return fmt.Errorf("invalid start date: %w", err)
+		return nil, fmt.Errorf("invalid start date: %w", err)
 	}
 
 	var endDate *time.Time
 	if req.EndDate != "" {
 		parsedEndDate, err := time.Parse("01-2006", req.EndDate)
 		if err != nil {
-			return fmt.Errorf("invalid end date: %w", err)
+			return nil, fmt.Errorf("invalid end date: %w", err)
 		}
 		endDate = &parsedEndDate
 	}
@@ -55,7 +55,11 @@ func (s *SubscriptionService) Create(
 		EndDate:     endDate,
 	}
 
-	return s.repo.Create(ctx, subscription)
+	if err := s.repo.Create(ctx, subscription); err != nil {
+		return nil, err
+	}
+
+	return subscription, nil
 }
 
 func (s *SubscriptionService) GetByID(
@@ -114,8 +118,8 @@ func (s *SubscriptionService) Delete(
 
 func (s *SubscriptionService) CalculateTotal(
 	ctx context.Context,
-	userID uuid.UUID,
-	serviceName string,
+	userID *uuid.UUID,
+	serviceName *string,
 	from time.Time,
 	to time.Time,
 ) (int, error) {
