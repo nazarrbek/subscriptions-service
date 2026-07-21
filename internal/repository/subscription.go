@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/nazarrbek/subscriptions-service/internal/apperror"
 	"github.com/nazarrbek/subscriptions-service/internal/models"
 )
 
@@ -80,6 +82,9 @@ WHERE id = $1`
 	)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperror.ErrNotFound
+		}
 		return nil, fmt.Errorf("get subscription by id: %w", err)
 	}
 
@@ -88,6 +93,7 @@ WHERE id = $1`
 
 func (r *SubscriptionRepository) List(
 	ctx context.Context,
+	limit, offset int,
 ) ([]models.Subscription, error) {
 
 	const query = `
@@ -101,10 +107,11 @@ SELECT
 	created_at,
 	updated_at
 FROM subscriptions
-ORDER BY created_at DESC;
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
 `
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.db.Query(ctx, query, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list subscriptions: %w", err)
 	}
@@ -139,10 +146,21 @@ ORDER BY created_at DESC;
 	return subscriptions, nil
 }
 
+// Count returns the total number of subscriptions.
+func (r *SubscriptionRepository) Count(ctx context.Context) (int, error) {
+	const query = `SELECT COUNT(*) FROM subscriptions`
+
+	var total int
+	if err := r.db.QueryRow(ctx, query).Scan(&total); err != nil {
+		return 0, fmt.Errorf("count subscriptions: %w", err)
+	}
+	return total, nil
+}
+
 func (r *SubscriptionRepository) Update(
 	ctx context.Context,
 	sub *models.Subscription,
-) error {
+) (*models.Subscription, error) {
 
 	const query = `
 UPDATE subscriptions
@@ -152,10 +170,13 @@ SET
 	start_date = $3,
 	end_date = $4,
 	updated_at = CURRENT_TIMESTAMP
-WHERE id = $5;
+WHERE id = $5
+RETURNING id, service_name, price, user_id, start_date, end_date, created_at, updated_at;
 `
 
-	_, err := r.db.Exec(
+	var updated models.Subscription
+
+	err := r.db.QueryRow(
 		ctx,
 		query,
 		sub.ServiceName,
@@ -163,13 +184,25 @@ WHERE id = $5;
 		sub.StartDate,
 		sub.EndDate,
 		sub.ID,
+	).Scan(
+		&updated.ID,
+		&updated.ServiceName,
+		&updated.Price,
+		&updated.UserID,
+		&updated.StartDate,
+		&updated.EndDate,
+		&updated.CreatedAt,
+		&updated.UpdatedAt,
 	)
 
 	if err != nil {
-		return fmt.Errorf("update subscription: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperror.ErrNotFound
+		}
+		return nil, fmt.Errorf("update subscription: %w", err)
 	}
 
-	return nil
+	return &updated, nil
 }
 
 func (r *SubscriptionRepository) Delete(
@@ -188,7 +221,7 @@ WHERE id = $1;
 	}
 
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("subscription not found")
+		return apperror.ErrNotFound
 	}
 
 	return nil

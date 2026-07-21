@@ -48,6 +48,8 @@ migrate \
 3. Запустите приложение:
 
 ```bash
+make run
+# или
 go run cmd/server/main.go
 ```
 
@@ -65,6 +67,22 @@ http://localhost:8080
 docker build -t subscriptions-service:test .
 ```
 
+## Тестирование
+
+```bash
+make test
+# или
+go test ./... -v -count=1
+```
+
+## Линтинг
+
+```bash
+make lint
+# или
+go vet ./...
+```
+
 ## Swagger
 
 После запуска сервиса документация доступна здесь:
@@ -75,21 +93,115 @@ http://localhost:8080/swagger/index.html
 
 ## API
 
-- `POST /subscriptions` — создать подписку
-- `GET /subscriptions` — получить список подписок
-- `GET /subscriptions/{id}` — получить подписку по ID
-- `PUT /subscriptions/{id}` — обновить подписку
-- `DELETE /subscriptions/{id}` — удалить подписку
-- `GET /subscriptions/total` — подсчитать общую стоимость подписок
+### Создание подписки
 
-Параметры для `GET /subscriptions/total`:
+`POST /subscriptions`
+
+**Тело запроса:**
+```json
+{
+  "service_name": "Netflix",
+  "price": 999,
+  "user_id": "60601fee-2bf1-4721-ae6f-7636e79a0cba",
+  "start_date": "01-2025",
+  "end_date": "12-2025"
+}
+```
+
+**Валидация:**
+- `service_name` — обязательное, не пустое
+- `price` — обязательное, >= 0
+- `user_id` — обязательное, валидный UUID
+- `start_date` — обязательное, формат `MM-YYYY`
+- `end_date` — опционально, формат `MM-YYYY`
+
+**Ответы:**
+- `201 Created` — `{"id": "uuid"}`
+- `400 Bad Request` — ошибка валидации
+- `500 Internal Server Error`
+
+---
+
+### Список подписок (с пагинацией)
+
+`GET /subscriptions?limit=10&offset=0`
+
+| Параметр | Описание | По умолчанию |
+|----------|----------|:------------:|
+| `limit`  | Количество записей (макс. 100) | 10 |
+| `offset` | Смещение от начала | 0 |
+
+**Ответ:**
+```json
+{
+  "data": [...],
+  "total": 42,
+  "limit": 10,
+  "offset": 0
+}
+```
+
+**Коды:**
+- `200 OK`
+- `400 Bad Request` — невалидные limit/offset
+- `500 Internal Server Error`
+
+---
+
+### Получение подписки по ID
+
+`GET /subscriptions/{id}`
+
+**Ответы:**
+- `200 OK` — объект подписки
+- `400 Bad Request` — невалидный UUID
+- `404 Not Found` — подписка не найдена
+
+---
+
+### Обновление подписки
+
+`PUT /subscriptions/{id}`
+
+**Тело запроса:**
+```json
+{
+  "service_name": "Updated Name",
+  "price": 1500,
+  "start_date": "01-2025",
+  "end_date": "12-2025"
+}
+```
+
+**Ответы:**
+- `200 OK` — обновлённый объект подписки
+- `400 Bad Request` — ошибка валидации
+- `404 Not Found` — подписка не найдена
+- `500 Internal Server Error`
+
+---
+
+### Удаление подписки
+
+`DELETE /subscriptions/{id}`
+
+**Ответы:**
+- `204 No Content`
+- `400 Bad Request` — невалидный UUID
+- `404 Not Found` — подписка не найдена
+
+---
+
+### Подсчёт стоимости подписок
+
+`GET /subscriptions/total`
 
 | Параметр | Описание |
 |----------|----------|
-| user_id | UUID пользователя, опционально |
-| service_name | Название сервиса, опционально |
-| from | Начало периода в формате `MM-YYYY` |
-| to | Конец периода в формате `MM-YYYY` |
+| `user_id` | UUID пользователя, опционально |
+| `service_name` | Название сервиса, опционально |
+| `from` | Начало периода в формате `MM-YYYY` |
+| `to` | Конец периода в формате `MM-YYYY` |
 
 Пример:
 
@@ -97,30 +209,30 @@ http://localhost:8080/swagger/index.html
 GET /subscriptions/total?user_id=60601fee-2bf1-4721-ae6f-7636e79a0cba&service_name=Yandex%20Plus&from=01-2025&to=12-2025
 ```
 
-## Как запушить в Git
+## Формат ошибок
 
-```bash
-git status
-git add README.md Dockerfile cmd/server/main.go internal/config/config.go internal/dto/create_subscription_response.go internal/handler/handler.go internal/middleware/logger.go internal/repository/subscription.go internal/service/subscription.go docs/docs.go docs/swagger.json docs/swagger.yaml
-git commit -m "Fix docker build, api docs and shutdown"
-git push origin main
+Все ошибки возвращаются в формате JSON:
+
+```json
+{
+  "error": "описание ошибки"
+}
 ```
-
-Если `main` защищен, пушьте в свою ветку и создавайте Pull Request.
 
 ## Структура проекта
 
 ```text
-cmd/server/
-internal/config/
-internal/dto/
-internal/handler/
-internal/middleware/
-internal/models/
-internal/repository/
-internal/service/
-migrations/
-docs/
+cmd/server/         — точка входа
+internal/apperror/  — кастомные ошибки приложения
+internal/config/    — конфигурация (Viper)
+internal/dto/       — DTO (запросы, ответы, валидация)
+internal/handler/   — HTTP-обработчики
+internal/middleware/ — middleware (логирование)
+internal/models/    — доменные модели
+internal/repository/— слой работы с БД
+internal/service/   — бизнес-логика
+migrations/         — SQL-миграции
+docs/               — Swagger-документация
 ```
 
 ## Логирование
@@ -130,5 +242,3 @@ docs/
 ## Автор
 
 Nazarbek Amanbek
-
-

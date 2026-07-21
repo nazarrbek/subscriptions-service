@@ -9,14 +9,25 @@ import (
 
 	"github.com/nazarrbek/subscriptions-service/internal/dto"
 	"github.com/nazarrbek/subscriptions-service/internal/models"
-	"github.com/nazarrbek/subscriptions-service/internal/repository"
 )
 
-type SubscriptionService struct {
-	repo *repository.SubscriptionRepository
+// SubscriptionRepo defines the repository contract used by the service layer.
+// This interface enables dependency injection and unit testing with mocks.
+type SubscriptionRepo interface {
+	Create(ctx context.Context, subscription *models.Subscription) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.Subscription, error)
+	List(ctx context.Context, limit, offset int) ([]models.Subscription, error)
+	Count(ctx context.Context) (int, error)
+	Update(ctx context.Context, sub *models.Subscription) (*models.Subscription, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	CalculateTotal(ctx context.Context, userID *uuid.UUID, serviceName *string, from, to time.Time) (int, error)
 }
 
-func NewSubscriptionService(repo *repository.SubscriptionRepository) *SubscriptionService {
+type SubscriptionService struct {
+	repo SubscriptionRepo
+}
+
+func NewSubscriptionService(repo SubscriptionRepo) *SubscriptionService {
 	return &SubscriptionService{
 		repo: repo,
 	}
@@ -26,6 +37,10 @@ func (s *SubscriptionService) Create(
 	ctx context.Context,
 	req *dto.CreateSubscriptionRequest,
 ) (*models.Subscription, error) {
+
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("validation: %w", err)
+	}
 
 	userID, err := uuid.Parse(req.UserID)
 	if err != nil {
@@ -72,20 +87,35 @@ func (s *SubscriptionService) GetByID(
 
 func (s *SubscriptionService) List(
 	ctx context.Context,
-) ([]models.Subscription, error) {
+	params dto.ListParams,
+) ([]models.Subscription, int, error) {
 
-	return s.repo.List(ctx)
+	subscriptions, err := s.repo.List(ctx, params.Limit, params.Offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	total, err := s.repo.Count(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return subscriptions, total, nil
 }
 
 func (s *SubscriptionService) Update(
 	ctx context.Context,
 	id uuid.UUID,
 	req *dto.UpdateSubscriptionRequest,
-) error {
+) (*models.Subscription, error) {
+
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("validation: %w", err)
+	}
 
 	startDate, err := time.Parse("01-2006", req.StartDate)
 	if err != nil {
-		return fmt.Errorf("invalid start date: %w", err)
+		return nil, fmt.Errorf("invalid start date: %w", err)
 	}
 
 	var endDate *time.Time
@@ -93,7 +123,7 @@ func (s *SubscriptionService) Update(
 	if req.EndDate != "" {
 		t, err := time.Parse("01-2006", req.EndDate)
 		if err != nil {
-			return fmt.Errorf("invalid end date: %w", err)
+			return nil, fmt.Errorf("invalid end date: %w", err)
 		}
 		endDate = &t
 	}
@@ -108,6 +138,7 @@ func (s *SubscriptionService) Update(
 
 	return s.repo.Update(ctx, sub)
 }
+
 func (s *SubscriptionService) Delete(
 	ctx context.Context,
 	id uuid.UUID,

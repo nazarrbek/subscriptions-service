@@ -1,24 +1,51 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/nazarrbek/subscriptions-service/internal/apperror"
 	"github.com/nazarrbek/subscriptions-service/internal/dto"
-	"github.com/nazarrbek/subscriptions-service/internal/service"
+	"github.com/nazarrbek/subscriptions-service/internal/models"
 )
 
-type SubscriptionHandler struct {
-	service *service.SubscriptionService
+const (
+	defaultLimit = 10
+	maxLimit     = 100
+)
+
+// SubscriptionServiceI defines the service contract used by the handler layer.
+type SubscriptionServiceI interface {
+	Create(ctx context.Context, req *dto.CreateSubscriptionRequest) (*models.Subscription, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*models.Subscription, error)
+	List(ctx context.Context, params dto.ListParams) ([]models.Subscription, int, error)
+	Update(ctx context.Context, id uuid.UUID, req *dto.UpdateSubscriptionRequest) (*models.Subscription, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	CalculateTotal(ctx context.Context, userID *uuid.UUID, serviceName *string, from, to time.Time) (int, error)
 }
 
-func NewSubscriptionHandler(service *service.SubscriptionService) *SubscriptionHandler {
+type SubscriptionHandler struct {
+	service SubscriptionServiceI
+}
+
+func NewSubscriptionHandler(service SubscriptionServiceI) *SubscriptionHandler {
 	return &SubscriptionHandler{
 		service: service,
 	}
+}
+
+// errorResponse writes a structured JSON error response.
+func errorResponse(w http.ResponseWriter, code int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 
 // Create godoc
@@ -29,20 +56,24 @@ func NewSubscriptionHandler(service *service.SubscriptionService) *SubscriptionH
 // @Produce json
 // @Param request body dto.CreateSubscriptionRequest true "Subscription"
 // @Success 201 {object} dto.CreateSubscriptionResponse
-// @Failure 400
-// @Failure 500
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
 // @Router /subscriptions [post]
 func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req dto.CreateSubscriptionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		errorResponse(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	createdSubscription, err := h.service.Create(r.Context(), &req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if strings.Contains(err.Error(), "validation:") {
+			errorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -58,8 +89,9 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param id path string true "Subscription ID"
 // @Success 200 {object} models.Subscription
-// @Failure 400
-// @Failure 404
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
 // @Router /subscriptions/{id} [get]
 func (h *SubscriptionHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
@@ -67,43 +99,83 @@ func (h *SubscriptionHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	parsedID, err := uuid.Parse(id)
 	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		errorResponse(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 
 	subscription, err := h.service.GetByID(r.Context(), parsedID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		if errors.Is(err, apperror.ErrNotFound) {
+			errorResponse(w, http.StatusNotFound, "subscription not found")
+			return
+		}
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
 	json.NewEncoder(w).Encode(subscription)
 }
 
 // List godoc
 // @Summary List subscriptions
-// @Description Get all subscriptions
+// @Description Get subscriptions with pagination
 // @Tags subscriptions
 // @Produce json
-// @Success 200 {array} models.Subscription
-// @Failure 500
+// @Param limit query int false "Number of records per page (default 10, max 100)"
+// @Param offset query int false "Number of records to skip (default 0)"
+// @Success 200 {object} dto.ListResponse
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
 // @Router /subscriptions [get]
 func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 
-	subscriptions, err := h.service.List(r.Context())
+	limit := defaultLimit
+	offset := 0
+
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed < 1 {
+			errorResponse(w, http.StatusBadRequest, "limit must be a positive integer")
+			return
+		}
+		if parsed > maxLimit {
+			parsed = maxLimit
+		}
+		limit = parsed
+	}
+
+	if rawOffset := r.URL.Query().Get("offset"); rawOffset != "" {
+		parsed, err := strconv.Atoi(rawOffset)
+		if err != nil || parsed < 0 {
+			errorResponse(w, http.StatusBadRequest, "offset must be a non-negative integer")
+			return
+		}
+		offset = parsed
+	}
+
+	params := dto.ListParams{
+		Limit:  limit,
+		Offset: offset,
+	}
+
+	subscriptions, total, err := h.service.List(r.Context(), params)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if subscriptions == nil {
+		subscriptions = []models.Subscription{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(subscriptions); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	json.NewEncoder(w).Encode(dto.ListResponse{
+		Data:   subscriptions,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	})
 }
 
 // Update godoc
@@ -114,9 +186,10 @@ func (h *SubscriptionHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param id path string true "Subscription ID"
 // @Param request body dto.UpdateSubscriptionRequest true "Subscription"
-// @Success 200
-// @Failure 400
-// @Failure 404
+// @Success 200 {object} models.Subscription
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
 // @Router /subscriptions/{id} [put]
 func (h *SubscriptionHandler) Update(
 	w http.ResponseWriter,
@@ -127,23 +200,33 @@ func (h *SubscriptionHandler) Update(
 
 	parsedID, err := uuid.Parse(id)
 	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		errorResponse(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 
 	var req dto.UpdateSubscriptionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		errorResponse(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	if err := h.service.Update(r.Context(), parsedID, &req); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	updated, err := h.service.Update(r.Context(), parsedID, &req)
+	if err != nil {
+		if errors.Is(err, apperror.ErrNotFound) {
+			errorResponse(w, http.StatusNotFound, "subscription not found")
+			return
+		}
+		if strings.Contains(err.Error(), "validation:") {
+			errorResponse(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(updated)
 }
 
 // Delete godoc
@@ -153,8 +236,9 @@ func (h *SubscriptionHandler) Update(
 // @Produce json
 // @Param id path string true "Subscription ID"
 // @Success 204
-// @Failure 400
-// @Failure 404
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
 // @Router /subscriptions/{id} [delete]
 func (h *SubscriptionHandler) Delete(
 	w http.ResponseWriter,
@@ -165,12 +249,16 @@ func (h *SubscriptionHandler) Delete(
 
 	parsedID, err := uuid.Parse(id)
 	if err != nil {
-		http.Error(w, "invalid id", http.StatusBadRequest)
+		errorResponse(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 
 	if err := h.service.Delete(r.Context(), parsedID); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		if errors.Is(err, apperror.ErrNotFound) {
+			errorResponse(w, http.StatusNotFound, "subscription not found")
+			return
+		}
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -187,8 +275,8 @@ func (h *SubscriptionHandler) Delete(
 // @Param from query string true "Start period (MM-YYYY)"
 // @Param to query string true "End period (MM-YYYY)"
 // @Success 200 {object} dto.TotalResponse
-// @Failure 400
-// @Failure 500
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
 // @Router /subscriptions/total [get]
 func (h *SubscriptionHandler) CalculateTotal(
 	w http.ResponseWriter,
@@ -198,7 +286,7 @@ func (h *SubscriptionHandler) CalculateTotal(
 	if rawUserID := r.URL.Query().Get("user_id"); rawUserID != "" {
 		parsedUserID, err := uuid.Parse(rawUserID)
 		if err != nil {
-			http.Error(w, "invalid user_id", http.StatusBadRequest)
+			errorResponse(w, http.StatusBadRequest, "invalid user_id")
 			return
 		}
 		userID = &parsedUserID
@@ -211,13 +299,13 @@ func (h *SubscriptionHandler) CalculateTotal(
 
 	from, err := time.Parse("01-2006", r.URL.Query().Get("from"))
 	if err != nil {
-		http.Error(w, "invalid from", http.StatusBadRequest)
+		errorResponse(w, http.StatusBadRequest, "invalid from parameter, expected MM-YYYY format")
 		return
 	}
 
 	to, err := time.Parse("01-2006", r.URL.Query().Get("to"))
 	if err != nil {
-		http.Error(w, "invalid to", http.StatusBadRequest)
+		errorResponse(w, http.StatusBadRequest, "invalid to parameter, expected MM-YYYY format")
 		return
 	}
 
@@ -230,7 +318,7 @@ func (h *SubscriptionHandler) CalculateTotal(
 	)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
